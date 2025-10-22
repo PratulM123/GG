@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auth0_flutter/auth0_flutter.dart';
 
 class AuthService {
@@ -32,7 +31,6 @@ class AuthService {
       _credentials = await _auth0.webAuthentication().login(
         audience: _audience,
         scopes: {'openid', 'profile', 'email'},
-        usePKCE: true,
       );
       
       if (_credentials != null) {
@@ -41,7 +39,7 @@ class AuthService {
       }
       return false;
     } catch (e) {
-      print('Login error: $e');
+      // Login error - user cancelled or network issue
       return false;
     }
   }
@@ -53,12 +51,12 @@ class AuthService {
       await _clearCredentials();
       _credentials = null;
     } catch (e) {
-      print('Logout error: $e');
+      // Logout error - continue anyway
     }
   }
   
   // Check if user is logged in
-  bool get isLoggedIn => _credentials != null && !_credentials!.isExpired;
+  bool get isLoggedIn => _credentials != null;
   
   // Get access token
   String? get accessToken => _credentials?.accessToken;
@@ -77,13 +75,13 @@ class AuthService {
   
   // Refresh token if needed
   Future<bool> refreshTokenIfNeeded() async {
-    if (_credentials != null && _credentials!.isExpired) {
+    if (_credentials != null) {
       try {
         _credentials = await _auth0.credentialsManager.renewCredentials();
         await _storeCredentials();
         return true;
       } catch (e) {
-        print('Token refresh error: $e');
+        // Token refresh error - user needs to login again
         return false;
       }
     }
@@ -106,7 +104,7 @@ class AuthService {
     
     final url = Uri.parse('$_apiBaseUrl$endpoint');
     final requestHeaders = {
-      'Authorization': 'Bearer ${accessToken}',
+      'Authorization': 'Bearer $accessToken',
       'Content-Type': 'application/json',
       ...?headers,
     };

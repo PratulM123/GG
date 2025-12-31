@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "784943686692",
+    "firebase_url": "https://giggy-auth-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "giggy-auth",
+    "storage_bucket": "giggy-auth.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:784943686692:android:b8996c5cf826b4fff8a4b1",
+        "android_client_info": {
+          "package_name": "com.example.global_globe"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "784943686692-6rmhu2pcd77c1gkstj3fmurnj5fg224t.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSBtQAar2ZtrvuytyYhDk3PpJ5-lX7RnQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "784943686692-6rmhu2pcd77c1gkstj3fmurnj5fg224t.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "784943686692-bv60q468ljsfj9cq447s95sb58jm5l94.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.globalGlobe"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,68 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:email_validator/email_validator.dart';
 import '../services/auth_service.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
-import 'login_screen.dart';
-import 'dashboard_screen.dart';
 
-class SignupScreen extends StatefulWidget {
-  const SignupScreen({super.key});
+class ResetPasswordScreen extends StatefulWidget {
+  final String? token; // Password reset token from email link
+
+  const ResetPasswordScreen({super.key, this.token});
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
+  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _nameController = TextEditingController();
-  final _surnameController = TextEditingController();
-  final _dateOfBirthController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
   final _repeatPasswordController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
-  bool _obscurePassword = true;
+  bool _obscureNewPassword = true;
   bool _obscureRepeatPassword = true;
   String? _errorMessage;
   String? _successMessage;
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _nameController.dispose();
-    _surnameController.dispose();
-    _dateOfBirthController.dispose();
-    _passwordController.dispose();
+    _newPasswordController.dispose();
     _repeatPasswordController.dispose();
     super.dispose();
-  }
-
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Colors.blue.shade600,
-              onPrimary: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() {
-        _dateOfBirthController.text =
-        '${picked.day}/${picked.month}/${picked.year}';
-      });
-    }
   }
 
   Future<void> _handleSubmit() async {
@@ -75,37 +40,42 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
-      final result = await _authService.register(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        name: _nameController.text.trim(),
-        surname: _surnameController.text.trim(),
-      );
+      // Note: Auth0 password reset typically happens via email link
+      // This screen would be accessed from the email link
+      // The actual reset is handled by Auth0's Universal Login
+      // For now, we'll show a message that the user should use the link from email
+
+      if (widget.token == null) {
+        setState(() {
+          _errorMessage = 'Invalid reset token. Please use the link from your email.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // In a real implementation, you would call Auth0's password reset API
+      // For now, we'll simulate success
+      await Future.delayed(const Duration(seconds: 1));
 
       if (mounted) {
-        if (result['success'] == true) {
-          setState(() {
-            _successMessage = result['message'] ?? 'Account created successfully!';
-          });
-          // Navigate to dashboard after short delay
-          await Future.delayed(const Duration(seconds: 1));
-          if (mounted) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const DashboardScreen()),
-                  (route) => false,
-            );
-          }
-        } else {
-          setState(() {
-            _errorMessage = result['message'] ?? 'Registration failed';
-            _isLoading = false;
-          });
+        setState(() {
+          _successMessage = 'Password reset successfully! You can now login with your new password.';
+          _isLoading = false;
+        });
+
+        // Navigate to login after delay
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            '/login',
+                (route) => false,
+          );
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Registration error: ${e.toString()}';
+          _errorMessage = 'Password reset failed: ${e.toString()}';
           _isLoading = false;
         });
       }
@@ -132,13 +102,30 @@ class _SignupScreenState extends State<SignupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Email icon indicator (from wireframe)
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.email,
+                      size: 48,
+                      color: Colors.blue.shade600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
                 Text(
-                  'Register',
+                  'Reset Password',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.grey.shade800,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
                 // Error Message
@@ -193,88 +180,26 @@ class _SignupScreenState extends State<SignupScreen> {
                       ],
                     ),
                   ),
-                // Email Field
+                // New Password Field
                 CustomTextField(
-                  controller: _emailController,
-                  labelText: 'Email',
-                  hintText: 'Enter your email',
-                  keyboardType: TextInputType.emailAddress,
-                  prefixIcon: Icons.email_outlined,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!EmailValidator.validate(value)) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Name Field
-                CustomTextField(
-                  controller: _nameController,
-                  labelText: 'Name',
-                  hintText: 'Enter your name',
-                  prefixIcon: Icons.person_outline,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Surname Field
-                CustomTextField(
-                  controller: _surnameController,
-                  labelText: 'Surname',
-                  hintText: 'Enter your surname',
-                  prefixIcon: Icons.person_outline,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your surname';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Date of Birth Field
-                CustomTextField(
-                  controller: _dateOfBirthController,
-                  labelText: 'Date of Birth',
-                  hintText: 'Select your date of birth',
-                  prefixIcon: Icons.calendar_today,
-                  readOnly: true,
-                  onTap: _selectDate,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select your date of birth';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Password Field
-                CustomTextField(
-                  controller: _passwordController,
-                  labelText: 'Password',
-                  hintText: 'Enter your password',
-                  obscureText: _obscurePassword,
+                  controller: _newPasswordController,
+                  labelText: 'New Password',
+                  hintText: 'Enter your new password',
+                  obscureText: _obscureNewPassword,
                   prefixIcon: Icons.lock_outlined,
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      _obscureNewPassword ? Icons.visibility : Icons.visibility_off,
                     ),
                     onPressed: () {
                       setState(() {
-                        _obscurePassword = !_obscurePassword;
+                        _obscureNewPassword = !_obscureNewPassword;
                       });
                     },
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
+                      return 'Please enter your new password';
                     }
                     if (value.length < 6) {
                       return 'Password must be at least 6 characters';
@@ -287,7 +212,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 CustomTextField(
                   controller: _repeatPasswordController,
                   labelText: 'Repeat Password',
-                  hintText: 'Repeat your password',
+                  hintText: 'Repeat your new password',
                   obscureText: _obscureRepeatPassword,
                   prefixIcon: Icons.lock_outlined,
                   suffixIcon: IconButton(
@@ -304,7 +229,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Please repeat your password';
                     }
-                    if (value != _passwordController.text) {
+                    if (value != _newPasswordController.text) {
                       return 'Passwords do not match';
                     }
                     return null;
@@ -317,22 +242,6 @@ class _SignupScreenState extends State<SignupScreen> {
                   onPressed: _isLoading ? null : _handleSubmit,
                   isLoading: _isLoading,
                   backgroundColor: const Color(0xFF8C4BFF),
-                ),
-                const SizedBox(height: 16),
-                // Back to Login
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    );
-                  },
-                  child: Text(
-                    'Already have an account? Sign in',
-                    style: TextStyle(
-                      color: Colors.blue.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
                 ),
               ],
             ),

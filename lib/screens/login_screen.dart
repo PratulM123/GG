@@ -63,8 +63,26 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMsg = 'Login failed';
+        
+        // Parse error message to make it user-friendly
+        final errorStr = e.toString();
+        if (errorStr.contains('invalid_grant') || errorStr.contains('Wrong email or password')) {
+          errorMsg = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (errorStr.contains('user_not_found') || errorStr.contains('User does not exist')) {
+          errorMsg = 'No account found with this email. Please register first.';
+        } else if (errorStr.contains('too_many_attempts')) {
+          errorMsg = 'Too many login attempts. Please wait a few minutes and try again.';
+        } else if (errorStr.contains('SocketException') || errorStr.contains('Failed host lookup')) {
+          errorMsg = 'Network error. Please check your internet connection and try again.';
+        } else {
+          // Extract the actual error message if it's an Exception
+          final match = RegExp(r'Exception: (.+)').firstMatch(errorStr);
+          errorMsg = match != null ? match.group(1)! : errorStr;
+        }
+        
         setState(() {
-          _errorMessage = 'Login failed: ${e.toString()}';
+          _errorMessage = errorMsg;
           _isLoading = false;
         });
       }

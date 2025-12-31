@@ -25,6 +25,55 @@ class AuthService {
     }
   }
 
+  // Helper to decode JWT token and extract user info
+  Map<String, dynamic>? _decodeJWT(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      
+      // Decode base64url
+      String payload = parts[1];
+      // Add padding if needed
+      switch (payload.length % 4) {
+        case 1:
+          payload += '===';
+          break;
+        case 2:
+          payload += '==';
+          break;
+        case 3:
+          payload += '=';
+          break;
+      }
+      payload = payload.replaceAll('-', '+').replaceAll('_', '/');
+      
+      final decoded = utf8.decode(base64Decode(payload));
+      return jsonDecode(decoded) as Map<String, dynamic>;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Helper to create UserProfile from ID token
+  UserProfile? _createUserProfileFromToken(String? idToken) {
+    if (idToken == null) return null;
+    
+    final decoded = _decodeJWT(idToken);
+    if (decoded == null) return null;
+    
+    return UserProfile(
+      sub: decoded['sub'] as String? ?? '',
+      name: decoded['name'] as String?,
+      nickname: decoded['nickname'] as String?,
+      picture: decoded['picture'] as String?,
+      email: decoded['email'] as String?,
+      emailVerified: decoded['email_verified'] as bool? ?? false,
+      updatedAt: decoded['updated_at'] != null 
+          ? DateTime.tryParse(decoded['updated_at'] as String)
+          : null,
+    );
+  }
+
   // Login with Auth0 (Universal Login - recommended)
   Future<bool> login() async {
     try {
@@ -65,26 +114,37 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // Create credentials object from token response
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        
+        // Decode ID token to get user profile
+        final idToken = data['id_token'] as String?;
+        final userProfile = _createUserProfileFromToken(idToken);
+        
+        // Create credentials object from token response with user profile
         _credentials = Credentials(
-          accessToken: data['access_token'],
-          refreshToken: data['refresh_token'],
-          idToken: data['id_token'],
-          expiresAt: DateTime.now().add(Duration(seconds: data['expires_in'] ?? 3600)),
-          tokenType: data['token_type'] ?? 'Bearer',
-          scopes: (data['scope'] as String?)?.split(' ') ?? [],
+          user: userProfile ?? UserProfile(sub: email), // Fallback to email if profile decode fails
+          accessToken: data['access_token'] as String,
+          refreshToken: data['refresh_token'] as String?,
+          idToken: idToken,
+          expiresAt: DateTime.now().add(Duration(seconds: data['expires_in'] as int? ?? 3600)),
+          tokenType: data['token_type'] as String? ?? 'Bearer',
+          scopes: (data['scope'] as String?)?.split(' ').where((s) => s.isNotEmpty).toSet() ?? {},
         );
         await _storeCredentials();
         return true;
       } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['error_description'] ?? errorData['error'] ?? 'Login failed');
+        // Parse error response
+        try {
+          final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+          final errorDesc = errorData['error_description'] as String? ?? errorData['error'] as String? ?? 'Login failed';
+          throw Exception(errorDesc);
+        } catch (e) {
+          throw Exception('Login failed: ${response.statusCode}');
+        }
       }
     } catch (e) {
-      // Login error - fallback to Universal Login
-      // This is more secure and recommended by Auth0
-      return await login();
+      // Re-throw the exception so the UI can display the error
+      rethrow;
     }
   }
 
@@ -96,43 +156,102 @@ class AuthService {
     String? surname,
   }) async {
     try {
-      // Use Auth0 Management API signup endpoint
+      // Use Auth0 Database Connections signup endpoint
+      // This endpoint creates a user in Auth0's database and saves user_metadata
       final signupUrl = Uri.parse('https://$_auth0Domain/dbconnections/signup');
       final response = await http.post(
         signupUrl,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'client_id': _clientId,
-          'email': email,
+          'email': email.trim().toLowerCase(),
           'password': password,
           'connection': 'Username-Password-Authentication',
           'user_metadata': {
-            'name': name,
-            'surname': surname ?? '',
+            'name': name.trim(),
+            'surname': (surname ?? '').trim(),
+            'full_name': '${name.trim()} ${(surname ?? '').trim()}'.trim(),
           },
         }),
       );
 
-      if (response.statusCode == 200) {
-        // After signup, automatically log in
-        final loginSuccess = await loginWithEmailPassword(email, password);
-        return {
-          'success': loginSuccess,
-          'message': loginSuccess 
-            ? 'Account created successfully' 
-            : 'Account created but login failed. Please try logging in.',
-        };
+      // Parse response
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        
+        // User successfully created in Auth0 database
+        // Now automatically log in the user
+        try {
+          final loginSuccess = await loginWithEmailPassword(email, password);
+          if (loginSuccess) {
+            return {
+              'success': true,
+              'message': 'Account created successfully! You are now logged in.',
+            };
+          } else {
+            // Account created but login failed - user should try logging in manually
+            return {
+              'success': false,
+              'message': 'Account created successfully, but automatic login failed. Please try logging in.',
+            };
+          }
+        } catch (loginError) {
+          // Account created but login failed
+          return {
+            'success': false,
+            'message': 'Account created successfully, but automatic login failed: ${loginError.toString()}. Please try logging in.',
+          };
+        }
       } else {
-        final errorData = jsonDecode(response.body);
-        return {
-          'success': false,
-          'message': errorData['description'] ?? errorData['error'] ?? 'Registration failed',
-        };
+        // Registration failed - parse error message
+        try {
+          final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+          String errorMessage = 'Registration failed';
+          
+          // Auth0 returns different error formats
+          if (errorData.containsKey('description')) {
+            errorMessage = errorData['description'] as String;
+          } else if (errorData.containsKey('error')) {
+            final error = errorData['error'] as String;
+            final errorDesc = errorData['error_description'] as String?;
+            errorMessage = errorDesc ?? error;
+            
+            // Make error messages more user-friendly
+            if (error == 'invalid_signup' || error == 'user_exists') {
+              errorMessage = 'An account with this email already exists. Please use a different email or try logging in.';
+            } else if (error == 'password_strength_error') {
+              errorMessage = 'Password is too weak. Please use a stronger password.';
+            } else if (error == 'invalid_password') {
+              errorMessage = 'Invalid password. Please check your password requirements.';
+            }
+          } else if (errorData.containsKey('message')) {
+            errorMessage = errorData['message'] as String;
+          }
+          
+          return {
+            'success': false,
+            'message': errorMessage,
+          };
+        } catch (parseError) {
+          // Could not parse error response
+          return {
+            'success': false,
+            'message': 'Registration failed: ${response.statusCode}. Please try again.',
+          };
+        }
       }
     } catch (e) {
+      // Network or other error
+      String errorMessage = 'Registration error: ${e.toString()}';
+      
+      // Make network errors more user-friendly
+      if (e.toString().contains('SocketException') || e.toString().contains('Failed host lookup')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      }
+      
       return {
         'success': false,
-        'message': 'Registration error: ${e.toString()}',
+        'message': errorMessage,
       };
     }
   }

@@ -85,13 +85,16 @@ class _SignupScreenState extends State<SignupScreen> {
       if (mounted) {
         if (result['success'] == true) {
           setState(() {
-            _successMessage = result['message'] ?? 'Account created successfully!';
+            _successMessage =
+                result['message'] ?? 'Account created successfully! Please log in.';
+            _isLoading = false;
           });
-          // Navigate to dashboard after short delay
+          // After a short delay, go back to Login screen where user will
+          // authenticate via Universal Login.
           await Future.delayed(const Duration(seconds: 1));
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
               (route) => false,
             );
           }

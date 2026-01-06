@@ -37,52 +37,30 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
-
+    // Use Auth0 Universal Login (PKCE) instead of direct password grant.
+    // This avoids 401s caused by server-side ROPG configuration and is the
+    // recommended flow for native/mobile apps.
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      // Try email/password login first (matches wireframe)
-      final success = await _authService.loginWithEmailPassword(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-
+      final success = await _authService.login();
       if (success && mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const DashboardScreen()),
         );
       } else if (mounted) {
         setState(() {
-          _errorMessage = 'Invalid email or password. Please try again.';
+          _errorMessage = 'Login cancelled or failed';
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        String errorMsg = 'Login failed';
-        
-        // Parse error message to make it user-friendly
-        final errorStr = e.toString();
-        if (errorStr.contains('invalid_grant') || errorStr.contains('Wrong email or password')) {
-          errorMsg = 'Invalid email or password. Please check your credentials and try again.';
-        } else if (errorStr.contains('user_not_found') || errorStr.contains('User does not exist')) {
-          errorMsg = 'No account found with this email. Please register first.';
-        } else if (errorStr.contains('too_many_attempts')) {
-          errorMsg = 'Too many login attempts. Please wait a few minutes and try again.';
-        } else if (errorStr.contains('SocketException') || errorStr.contains('Failed host lookup')) {
-          errorMsg = 'Network error. Please check your internet connection and try again.';
-        } else {
-          // Extract the actual error message if it's an Exception
-          final match = RegExp(r'Exception: (.+)').firstMatch(errorStr);
-          errorMsg = match != null ? match.group(1)! : errorStr;
-        }
-        
         setState(() {
-          _errorMessage = errorMsg;
+          _errorMessage = 'Login error: ${e.toString()}';
           _isLoading = false;
         });
       }

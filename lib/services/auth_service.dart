@@ -184,29 +184,13 @@ class AuthService {
 
       // Parse response
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // User successfully created in Auth0 database
-        // Now automatically log in the user
-        try {
-          final loginSuccess = await loginWithEmailPassword(email, password);
-          if (loginSuccess) {
-            return {
-              'success': true,
-              'message': 'Account created successfully! You are now logged in.',
-            };
-          } else {
-            // Account created but login failed - user should try logging in manually
-            return {
-              'success': false,
-              'message': 'Account created successfully, but automatic login failed. Please try logging in.',
-            };
-          }
-        } catch (loginError) {
-          // Account created but login failed
-          return {
-            'success': false,
-            'message': 'Account created successfully, but automatic login failed: ${loginError.toString()}. Please try logging in.',
-          };
-        }
+        // User successfully created in Auth0 database.
+        // We no longer try to auto-login via password grant (which can 401).
+        // Instead, the user will login via Universal Login.
+        return {
+          'success': true,
+          'message': 'Account created successfully! Please log in to continue.',
+        };
       } else {
         // Registration failed - parse error message
         try {

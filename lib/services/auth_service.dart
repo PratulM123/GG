@@ -65,16 +65,14 @@ class AuthService {
       sub: decoded['sub'] as String? ?? '',
       name: decoded['name'] as String?,
       nickname: decoded['nickname'] as String?,
-      picture: decoded['picture'] as String?,
       email: decoded['email'] as String?,
-      emailVerified: decoded['email_verified'] as bool? ?? false,
       updatedAt: decoded['updated_at'] != null 
           ? DateTime.tryParse(decoded['updated_at'] as String)
           : null,
     );
   }
 
-  // Login with Auth0 (Universal Login - recommended)
+  // Login with Auth0 (Universal Login - recommended with PKCE)
   Future<bool> login() async {
     try {
       _credentials = await _auth0.webAuthentication().login(
@@ -121,11 +119,16 @@ class AuthService {
         final userProfile = _createUserProfileFromToken(idToken);
         
         // Create credentials object from token response with user profile
+        // idToken must be non-null for Credentials constructor
+        if (idToken == null) {
+          throw Exception('ID token is missing from authentication response');
+        }
+        
         _credentials = Credentials(
           user: userProfile ?? UserProfile(sub: email), // Fallback to email if profile decode fails
           accessToken: data['access_token'] as String,
           refreshToken: data['refresh_token'] as String?,
-          idToken: idToken,
+          idToken: idToken, // Now guaranteed to be non-null
           expiresAt: DateTime.now().add(Duration(seconds: data['expires_in'] as int? ?? 3600)),
           tokenType: data['token_type'] as String? ?? 'Bearer',
           scopes: (data['scope'] as String?)?.split(' ').where((s) => s.isNotEmpty).toSet() ?? {},
@@ -177,8 +180,6 @@ class AuthService {
 
       // Parse response
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-        
         // User successfully created in Auth0 database
         // Now automatically log in the user
         try {

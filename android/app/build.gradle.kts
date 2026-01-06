@@ -29,11 +29,11 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        // ✅ Kotlin DSL way
+        // ✅ Kotlin DSL way - Auth0 configuration
         manifestPlaceholders.putAll(
             mapOf(
                 "auth0Domain" to "twoglobes.eu.auth0.com",
-                "auth0Scheme" to "demo"
+                "auth0Scheme" to "com.example.global_globe"
             )
         )
     }

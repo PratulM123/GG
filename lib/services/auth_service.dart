@@ -7,6 +7,9 @@ class AuthService {
   static const String _clientId = 'x2pVfwSjjxqZGIGtcIEani5naU9VnotX';
   static const String _audience = 'https://api-staging.twoglobes.com/';
   static const String _apiBaseUrl = 'https://api-staging.twoglobes.com/mobile';
+  // Redirect URI must match Auth0 Allowed Callback URLs (native Android pattern)
+  static const String _redirectUri =
+      'com.example.global_globe://twoglobes.eu.auth0.com/android/com.example.global_globe/callback';
 
   late Auth0 _auth0;
   Credentials? _credentials;
@@ -78,6 +81,7 @@ class AuthService {
       _credentials = await _auth0.webAuthentication().login(
         audience: _audience,
         scopes: {'openid', 'profile', 'email'},
+        redirectUrl: _redirectUri,
       );
       if (_credentials != null) {
         await _storeCredentials();
